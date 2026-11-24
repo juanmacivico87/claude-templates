@@ -57,6 +57,24 @@ def bash_programs(command):
     return set(programs)
 
 
+def project_root(cwd, transcript_dir):
+    """Return the project path for a session.
+
+    The cwd may be a subfolder the session moved into, so walk up its ancestors until one
+    encodes to the transcript folder name (Claude Code replaces every non-alphanumeric char with '-').
+    """
+    if not cwd:
+        return None
+    candidate = cwd
+    while True:
+        if re.sub(r"[^A-Za-z0-9]", "-", candidate) == transcript_dir:
+            return candidate
+        parent = os.path.dirname(candidate)
+        if parent == candidate:
+            return cwd
+        candidate = parent
+
+
 def summarize_session(path):
     """Build the summary of one session transcript."""
     session = {
@@ -73,13 +91,14 @@ def summarize_session(path):
         except ValueError:
             continue
         record_type, timestamp = record.get("type"), record.get("timestamp")
+        # Take the cwd even from records outside the window: it is only used to locate the project.
+        if record.get("cwd") and not session["project"]:
+            session["project"] = record["cwd"]
         if timestamp and timestamp < CUTOFF_ISO:
             continue
         if timestamp:
             session["start"] = session["start"] or timestamp
             session["end"] = timestamp
-        if record.get("cwd") and not session["project"]:
-            session["project"] = record["cwd"]
 
         if record_type == "system":
             subtype = record.get("subtype")
@@ -135,6 +154,7 @@ def summarize_session(path):
                     session["corrections"] += 1
                 session["prompts"].append(re.sub(r"\s+", " ", text)[:MAX_PROMPT_CHARS])
 
+    session["project"] = project_root(session["project"], os.path.basename(os.path.dirname(path)))
     session["permission_denials"] = session["permission_denials"][:10]
     # Only files edited 3+ times are interesting: they hint at rework.
     frequently_edited = {f: n for f, n in session["edited_files"].items() if n >= 3}
