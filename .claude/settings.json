@@ -29,5 +29,19 @@
       "Bash(git commit --amend:*)",
       "Bash(git clean -f:*)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/tools/weekly-report/notify.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
